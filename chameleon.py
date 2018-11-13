@@ -225,18 +225,23 @@ class Database:
         self.db = self.db["chameleon"]
 
     def insertgamer(self, gamer):
-        self.db.gamers.insert_one(gamer)
+        self.db.users.insert_one(gamer)
 
     def insertgroup(self, group):
         self.db.groups.insert_one(group)
 
-    def find_entry(self, collection, ids, username=None):
-        temp = self.db[collection].find_one({"id": ids})
+    def find_entry_group(self, ids):
+        temp = self.db["groups"].find_one({"id": ids})
         if not temp:
-            if collection == "users":
-                self.insertgamer(vars(Gamers(ids, username)))
-            else:
-                self.insertgroup(vars(Group(ids)))
+            self.insertgroup(vars(Group(ids)))
+            return "en"
+        else:
+            return temp["lang"]
+
+    def find_entry_user(self, ids, username):
+        temp = self.db["users"].find_one({"id": ids})
+        if not temp:
+            self.insertgamer(vars(Gamers(ids, username)))
             return "en"
         else:
             return temp["lang"]
@@ -259,7 +264,7 @@ Buttons = Buttons()
 
 
 def start(bot, update, job_queue):
-    langcode = Database.find_entry("groups", update.effective_chat.id)
+    langcode = Database.find_entry_group(update.effective_chat.id)
     if not GlobalVariables.game_running:
         message = bot.send_message(chat_id=update.message.chat_id, text=lang["start_game"][langcode],
                                    reply_markup=Buttons.join_button(langcode))
@@ -271,7 +276,7 @@ def start(bot, update, job_queue):
 
 
 def reminder(bot, job):
-    langcode = Database.find_entry("groups", job.context)
+    langcode = Database.find_entry_group(job.context)
     if job.interval == 0:
         for message in GlobalVariables.messages:
             message.delete()
@@ -346,7 +351,7 @@ def vote(bot, update):
 
 
 def join(bot, update):
-    langcode = Database.find_entry("groups", update.effective_chat.id)
+    langcode = Database.find_entry_group(update.effective_chat.id)
     if GlobalVariables.game_running:
         # May also need more game states so we can make this better
         message = bot.send_message("Please use the start button beneath this message to join the game :)",
@@ -357,7 +362,7 @@ def join(bot, update):
 
 
 def joining(bot, update):
-    langcode = Database.find_entry("groups", update.effective_chat.id)
+    langcode = Database.find_entry_group(update.effective_chat.id)
     query = update.callback_query
     skip = False
     for gamers in GlobalVariables.gamers:
@@ -377,7 +382,7 @@ def joining(bot, update):
 
 
 def leaving(bot, update):
-    langcode = Database.find_entry("groups", update.effective_chat.id)
+    langcode = Database.find_entry_group(update.effective_chat.id)
     query = update.callback_query
     skip = False
     for gamers in GlobalVariables.gamers:
@@ -414,7 +419,6 @@ def voting(bot, update):
                 query.answer(text="No voting twice ;P", show_alert=True)
                 skip = True
     if not skip:
-        print("Grr")
         for gamer in GlobalVariables.gamers:
             if int(voteid) == gamer.id:
                 bot.send_message(chat_id=query.message.chat_id, text="{} voted for {}.".format(
@@ -433,7 +437,7 @@ def voting(bot, update):
 
 
 def config_group(bot, update):
-    langcode = Database.find_entry("users", update.effective_user.id, username=update.effective_user.first_name)
+    langcode = Database.find_entry_user(update.effective_user.id, update.effective_user.first_name)
     found = False
     admins = bot.getChatAdministrators(update.message.chat_id)
     for ids in admins:
@@ -452,7 +456,7 @@ def config_group(bot, update):
 
 
 def startconfig(bot, update, args):
-    langcode = Database.find_entry("users", update.effective_user.id)
+    langcode = Database.find_entry_user(update.effective_user.id, update.effective_user.name)
     if not args:
         update.message.reply_text(text=lang["start_private"][langcode])
     else:
