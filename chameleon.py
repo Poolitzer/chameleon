@@ -41,6 +41,7 @@ class GlobalVariables:
     voted = []
     stringcode = None
     string = None
+    votelist = {}
 
     def game_status(self, status):
         self.game_running = status
@@ -84,10 +85,30 @@ class GlobalVariables:
     def string_save(self, stringy):
         self.string = stringy
 
+    def votelist_create(self):
+        temp = []
+        for gamer in self.gamers:
+            self.votelist[gamer.name] = 0
+            temp.append(helpers.mention_html(gamer.id, gamer.name))
+        return temp
+
+    def votelist_update(self, gamers):
+        self.votelist[gamers] += 1
+        temp = []
+        for key, value in self.votelist.items():
+            for gamer in self.gamers:
+                if key == gamer.name:
+                    temp.append([helpers.mention_html(gamer.id, gamer.name), value])
+        return temp
+
 
 class Buttons:
-    join_button = InlineKeyboardMarkup([[InlineKeyboardButton("Join", callback_data="joining"),
-                                         InlineKeyboardButton("Leave", callback_data="leaving")]])
+    @staticmethod
+    def join_button(langcode):
+        temp = [[InlineKeyboardButton(lang["start_game_buttons"][langcode][0], callback_data="joining"),
+                 InlineKeyboardButton(lang["start_game_buttons"][langcode][1], callback_data="leaving")]]
+        return InlineKeyboardMarkup(temp)
+
     secret_button = InlineKeyboardMarkup([[InlineKeyboardButton("Show secret word", callback_data="secret word")]])
     string_buttons = InlineKeyboardMarkup([[InlineKeyboardButton("Accept", callback_data="stringyes"),
                                             InlineKeyboardButton("Decline", callback_data="stringno")]])
@@ -241,15 +262,16 @@ def start(bot, update, job_queue):
     langcode = Database.find_entry("groups", update.effective_chat.id)
     if not GlobalVariables.game_running:
         message = bot.send_message(chat_id=update.message.chat_id, text=lang["start_game"][langcode],
-                                   reply_markup=Buttons.join_button)
+                                   reply_markup=Buttons.join_button(langcode))
         GlobalVariables.message_add(message)
         job_queue.run_repeating(reminder, 20, context=update.message.chat_id)
     else:
-        bot.send_message(update.message.chat_id, "Please use the start button beneath this message to join the game :)",
-                         reply_markup=Buttons.join_button)
+        bot.send_message(update.message.chat_id, lang["start_game_already_running"][langcode],
+                         reply_markup=Buttons.join_button(langcode))
 
 
 def reminder(bot, job):
+    langcode = Database.find_entry("groups", job.context)
     if job.interval == 0:
         for message in GlobalVariables.messages:
             message.delete()
@@ -266,9 +288,8 @@ def reminder(bot, job):
             job.schedule_removal()
     else:
         job.interval -= 10
-        message = bot.send_message(chat_id=job.context,
-                                   text="Only {} seconds left to join the game...".format(job.interval),
-                                   reply_markup=Buttons.join_button)
+        message = bot.send_message(chat_id=job.context, text="Only {} seconds left to join the game...".
+                                   format(job.interval), reply_markup=Buttons.join_button(langcode))
         GlobalVariables.message_add(message)
 
 
@@ -288,44 +309,55 @@ def game(bot, job):
 def words(bot, update):
     if GlobalVariables.game_running:
         if update.message.reply_to_message.from_user.id == 586029498:
-            if update.effective_user.id == GlobalVariables.shuffle[len(GlobalVariables.words)].id:
-                GlobalVariables.words_add(
-                    [GlobalVariables.shuffle[len(GlobalVariables.words)].name, update.message.text])
-                temp = len(GlobalVariables.words)
-                templist = []
-                for things in GlobalVariables.words:
-                    templist.append("{}: {}".format(things[0], things[1]))
-                try:
-                    bot.send_message(update.effective_chat.id,
-                                     "Thanks. Now, its your turn, {}.\n\nCurrent Wordlist:\n{}".format(create_mention(
-                                         [GlobalVariables.shuffle[temp].id, GlobalVariables.shuffle[temp].name]),
-                                         "\n".join(
-                                             templist)),
-                                     parse_mode=ParseMode.HTML, reply_markup=ForceReply(selective=True))
-                except IndexError:
-                    bot.send_message(update.effective_chat.id,
-                                     "Final list, we have to go to vote then:\n{} ".format("\n".join(templist)),
-                                     parse_mode=ParseMode.HTML)
-                    vote(bot, update)
+            # This try cause it currently registers every answer. May need to add a vote status and check for this.
+            try:
+                if update.effective_user.id == GlobalVariables.shuffle[len(GlobalVariables.words)].id:
+                    GlobalVariables.words_add(
+                        [GlobalVariables.shuffle[len(GlobalVariables.words)].name, update.message.text])
+                    temp = len(GlobalVariables.words)
+                    templist = []
+                    for things in GlobalVariables.words:
+                        templist.append("{}: {}".format(things[0], things[1]))
+                    try:
+                        bot.send_message(update.effective_chat.id,
+                                         "Thanks. Now, its your turn, {}.\n\nCurrent Wordlist:\n{}".format(
+                                             create_mention(
+                                                 [GlobalVariables.shuffle[temp].id,
+                                                  GlobalVariables.shuffle[temp].name]),
+                                             "\n".join(
+                                                 templist)),
+                                         parse_mode=ParseMode.HTML, reply_markup=ForceReply(selective=True))
+                    except IndexError:
+                        bot.send_message(update.effective_chat.id,
+                                         "Final list, we have to go to vote then:\n{} ".format("\n".join(templist)),
+                                         parse_mode=ParseMode.HTML)
+                        vote(bot, update)
+            except IndexError:
+                pass
             else:
                 bot.send_message(update.effective_chat.id, "DENIED")
 
 
 def vote(bot, update):
-    bot.send_message(update.effective_chat.id, "Votelist", reply_markup=Buttons.vote())
+    votelist = GlobalVariables.votelist_create()
+    bot.send_message(update.effective_chat.id,
+                     "Votelist:\n\n{}".format("\n".join("{}: 0".format(voters) for voters in votelist)),
+                     reply_markup=Buttons.vote(), parse_mode=ParseMode.HTML)
 
 
 def join(bot, update):
+    langcode = Database.find_entry("groups", update.effective_chat.id)
     if GlobalVariables.game_running:
-        message = bot.send_message(update.message.chat_id,
-                                   "Please use the start button beneath this message to join the game :)",
-                                   reply_markup=Buttons.join_button)
+        # May also need more game states so we can make this better
+        message = bot.send_message("Please use the start button beneath this message to join the game :)",
+                                   reply_markup=Buttons.join_button(langcode))
         GlobalVariables.message_add(message)
     else:
         bot.send_message(update.message.chat_id, "You need to start a game first, please use /start for that.")
 
 
 def joining(bot, update):
+    langcode = Database.find_entry("groups", update.effective_chat.id)
     query = update.callback_query
     skip = False
     for gamers in GlobalVariables.gamers:
@@ -338,12 +370,14 @@ def joining(bot, update):
             create_mention([query.from_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
         gamer = Gamers(query.from_user.id, query.from_user.first_name)
         GlobalVariables.gamers_add(gamer)
+        temp = GlobalVariables.gamer_list()
         GlobalVariables.messages[0].edit_text(
             text="Chameleon has been started! Please join the game.\nPlayers:\n{}".format(
-                "\n".join(GlobalVariables.gamer_list())), parse_mode=ParseMode.HTML, reply_markup=Buttons.join_button)
+                "\n".join(temp)), parse_mode=ParseMode.HTML, reply_markup=Buttons.join_button(langcode))
 
 
 def leaving(bot, update):
+    langcode = Database.find_entry("groups", update.effective_chat.id)
     query = update.callback_query
     skip = False
     for gamers in GlobalVariables.gamers:
@@ -353,9 +387,8 @@ def leaving(bot, update):
                 create_mention([query.from_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
             GlobalVariables.gamers_rem(gamers)
             GlobalVariables.messages[0].edit_text(
-                text="Chameleon has been started! Please join the game.\nPlayers:\n{}".format(
-                    "\n".join(GlobalVariables.gamer_list())), parse_mode=ParseMode.HTML,
-                reply_markup=Buttons.join_button)
+                parse_mode=ParseMode.HTML,
+                reply_markup=Buttons.join_button(langcode))
             skip = True
     if not skip:
         query.answer(text="You need to join first...", show_alert=True)
@@ -364,7 +397,7 @@ def leaving(bot, update):
 def secreting(bot, update):
     query = update.callback_query
     if GlobalVariables.chameleon.id == query.from_user.id:
-        bot.answerCallbackQuery(callback_query_id=query.id, text="Your are the CHAMELEON",
+        bot.answerCallbackQuery(callback_query_id=query.id, text="You are the CHAMELEON",
                                 show_alert=True)
     else:
         bot.answerCallbackQuery(callback_query_id=query.id, text=theSource.secret_word,
@@ -372,25 +405,31 @@ def secreting(bot, update):
 
 
 def voting(bot, update):
-    print("Wuhu")
     query = update.callback_query
     voteid = update.callback_query.data[4:len(update.callback_query.data)]
-    print(voteid)
     skip = False
     for voted in GlobalVariables.gamers:
         if voted.id == query.from_user.id:
             if voted.vote:
-                query.answer(text="You need to join first...", show_alert=True)
+                query.answer(text="No voting twice ;P", show_alert=True)
                 skip = True
     if not skip:
         print("Grr")
         for gamer in GlobalVariables.gamers:
-            if voteid == gamer.id:
-                print("So far, so good")
+            if int(voteid) == gamer.id:
                 bot.send_message(chat_id=query.message.chat_id, text="{} voted for {}.".format(
                     create_mention([query.from_user.id, query.from_user.first_name]),
                     create_mention([gamer.id, gamer.name])), parse_mode=ParseMode.HTML)
-                gamer.vote = True
+                votelist = GlobalVariables.votelist_update(gamer.name)
+                query.edit_message_text(
+                    "Votelist:\n\n{}".format("\n".join("{}: {}".format(voter[0], voter[1]) for voter in votelist)),
+                    reply_markup=Buttons.vote(), parse_mode=ParseMode.HTML)
+                for gamers in GlobalVariables.gamers:
+                    if query.from_user.id == gamers.id:
+                        gamers.vote = True
+                if all(gamer.vote is True for gamer in GlobalVariables.gamers):
+                    bot.send_message(chat_id=query.message.chat_id, text="Voting stopped y'all")
+                query.answer(text="You voted for {}".format(gamer.name))
 
 
 def config_group(bot, update):

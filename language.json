@@ -4,6 +4,15 @@
         "en": "Chameleon has been started! Please join the game.",
         "fr": "Grrr"
     },
+    "start_game_buttons": {
+        "en": ["Join", "Leave"]
+    },
+    "start_game_already_running": {
+        "en": "Please use the start button beneath this message to join the game :)"
+    },
+    "game_is_starting": {
+        "en": "Game is starting..."
+    },
     "need_to_start_first": {
         "en": "You need to start me in private first. Please do this via the button below :)"
     },
