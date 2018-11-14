@@ -1,4 +1,7 @@
 {
+    "added_to_group": {
+        "en": "Hello there. Run /config to change the language and enjoy the game."
+    },
     "start_game": {
         "de": "Poowitzer is the best! \\o/",
         "en": "Chameleon has been started! Please join the game.",

@@ -263,6 +263,14 @@ theSource = Source()
 Buttons = Buttons()
 
 
+def add(bot, update):
+    langcode = Database.find_entry_group(update.effective_chat.id)
+    for ids in update.message.new_chat_members:
+        if ids["id"] == 686965201:
+            bot.send_message(chat_id=update.message.chat_id, text=lang["added_to_group"][langcode])
+        break
+
+
 def start(bot, update, job_queue):
     langcode = Database.find_entry_group(update.effective_chat.id)
     if not GlobalVariables.game_running:
@@ -583,6 +591,7 @@ def main():
     dispatcher.add_handler(CommandHandler('config', config_private, filters=Filters.private))
     dispatcher.add_handler(CallbackQueryHandler(configing, pattern="change"))
     dispatcher.add_handler(CallbackQueryHandler(languaging, pattern="updatelang"))
+    dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_members, add))
     dispatcher.add_handler(CommandHandler('start', startconfig, pass_args=True, filters=Filters.private))
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('translate', translate, filters=Filters.private)],
