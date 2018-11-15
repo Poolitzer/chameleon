@@ -358,6 +358,11 @@ def vote(bot, update):
                      reply_markup=Buttons.vote(), parse_mode=ParseMode.HTML)
 
 
+def finish(bot, update):
+    langcode = Database.find_entry_group(update.effective_chat.id)
+    # the finish shall more or less be here
+
+
 def join(bot, update):
     langcode = Database.find_entry_group(update.effective_chat.id)
     if GlobalVariables.game_running:
@@ -374,14 +379,14 @@ def joining(bot, update):
     query = update.callback_query
     skip = False
     for gamers in GlobalVariables.gamers:
-        if gamers.id == query.from_user.id:
+        if gamers.id == update.effective_user.id:
             query.answer(text="You joined already...", show_alert=True)
             skip = True
     if not skip:
         query.answer(text="You joined the game!")
         bot.send_message(chat_id=query.message.chat_id, text="{} joined the game.".format(
-            create_mention([query.from_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
-        gamer = Gamers(query.from_user.id, query.from_user.first_name)
+            create_mention([update.effective_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
+        gamer = Gamers(update.effective_user.id, query.from_user.first_name)
         GlobalVariables.gamers_add(gamer)
         temp = GlobalVariables.gamer_list()
         GlobalVariables.messages[0].edit_text(
@@ -394,10 +399,10 @@ def leaving(bot, update):
     query = update.callback_query
     skip = False
     for gamers in GlobalVariables.gamers:
-        if gamers.id == query.from_user.id:
+        if gamers.id == update.effective_user.id:
             query.answer(text="You left the game!")
             bot.send_message(chat_id=query.message.chat_id, text="{} left the game.".format(
-                create_mention([query.from_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
+                create_mention([update.effective_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
             GlobalVariables.gamers_rem(gamers)
             GlobalVariables.messages[0].edit_text(
                 parse_mode=ParseMode.HTML,
@@ -409,7 +414,7 @@ def leaving(bot, update):
 
 def secreting(bot, update):
     query = update.callback_query
-    if GlobalVariables.chameleon.id == query.from_user.id:
+    if GlobalVariables.chameleon.id == update.effective_user.id:
         bot.answerCallbackQuery(callback_query_id=query.id, text="You are the CHAMELEON",
                                 show_alert=True)
     else:
@@ -422,7 +427,7 @@ def voting(bot, update):
     voteid = update.callback_query.data[4:len(update.callback_query.data)]
     skip = False
     for voted in GlobalVariables.gamers:
-        if voted.id == query.from_user.id:
+        if voted.id == update.effective_user.id:
             if voted.vote:
                 query.answer(text="No voting twice ;P", show_alert=True)
                 skip = True
@@ -430,17 +435,18 @@ def voting(bot, update):
         for gamer in GlobalVariables.gamers:
             if int(voteid) == gamer.id:
                 bot.send_message(chat_id=query.message.chat_id, text="{} voted for {}.".format(
-                    create_mention([query.from_user.id, query.from_user.first_name]),
+                    create_mention([update.effective_user.id, query.from_user.first_name]),
                     create_mention([gamer.id, gamer.name])), parse_mode=ParseMode.HTML)
                 votelist = GlobalVariables.votelist_update(gamer.name)
                 query.edit_message_text(
                     "Votelist:\n\n{}".format("\n".join("{}: {}".format(voter[0], voter[1]) for voter in votelist)),
                     reply_markup=Buttons.vote(), parse_mode=ParseMode.HTML)
                 for gamers in GlobalVariables.gamers:
-                    if query.from_user.id == gamers.id:
+                    if update.effective_user.id == gamers.id:
                         gamers.vote = True
                 if all(gamer.vote is True for gamer in GlobalVariables.gamers):
                     bot.send_message(chat_id=query.message.chat_id, text="Voting stopped y'all")
+                    finish(bot, update)
                 query.answer(text="You voted for {}".format(gamer.name))
 
 
