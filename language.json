@@ -5,6 +5,9 @@
     "change_settings_of_group": {
         "en": "You want to change the settings of the group {}? Well, here you go then."
     },
+    "group_settings_buttons": {
+        "en": ["Change language", "Min/Max Players"]
+    },
     "game_is_starting": {
         "en": "Game is starting..."
     },
@@ -23,12 +26,18 @@
         "en": "Please use the start button beneath this message to join the game :)"
     },
     "start_game_buttons": {
-        "en": [
-            "Join",
-            "Leave"
-        ]
+        "en": ["Join", "Leave"]
     },
     "start_private": {
         "en": "Hello there"
+    },
+    "private_settings_buttons": {
+        "en": ["Change language"]
+    },
+    "config": {
+        "en": ["So language it is. Please choose one from the list below", "So the min/max players it is"]
+    },
+    "setting_players": {
+        "en": ["Minimum players", "Maximum Players"]
     }
 }

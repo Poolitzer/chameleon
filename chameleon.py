@@ -141,8 +141,17 @@ class Buttons:
                                                            .format(user_id, chat_id))]])
 
     @staticmethod
-    def config(chat_id):
-        temp = [[InlineKeyboardButton("Change language", callback_data="changelg|{}".format(chat_id))]]
+    def group_config(chat_id, langcode):
+        temp = [[InlineKeyboardButton(lang["group_settings_buttons"][langcode][0],
+                                      callback_data="changelg|{}".format(chat_id)),
+                 InlineKeyboardButton(lang["group_settings_buttons"][langcode][1],
+                                      callback_data="changepl|{}".format(chat_id))]]
+        return InlineKeyboardMarkup(temp)
+
+    @staticmethod
+    def private_config(chat_id, langcode):
+        temp = [[InlineKeyboardButton(lang["private_settings_buttons"][langcode][0],
+                                      callback_data="changelg|{}".format(chat_id))]]
         return InlineKeyboardMarkup(temp)
 
     @staticmethod
@@ -164,6 +173,14 @@ class Buttons:
                 temp.append(subtemp)
         return InlineKeyboardMarkup(temp)
 
+    @staticmethod
+    def players(chat_id, langcode):
+        temp = [[InlineKeyboardButton(lang["setting_players"][langcode][0],
+                                      callback_data="updateplaymax|{}".format(chat_id)),
+                 InlineKeyboardButton(lang["setting_players"][langcode][1],
+                                      callback_data="updateplaymin|{}".format(chat_id))]]
+        return InlineKeyboardMarkup(temp)
+
 
 class Gamers:
     def __init__(self, user_id, username):
@@ -179,6 +196,8 @@ class Group:
     def __init__(self, group_id):
         self.id = group_id
         self.lang = "en"
+        self.min_players = 3
+        self.max_players = 35
 
 
 class Database:
@@ -433,7 +452,7 @@ def config_group(bot, update):
             try:
                 bot.send_message(update.effective_user.id,
                                  lang["change_settings_of_group"][langcode].format(update.effective_chat.title),
-                                 reply_markup=Buttons.config(update.effective_chat.id))
+                                 reply_markup=Buttons.group_config(update.effective_chat.id, langcode))
             except Unauthorized:
                 update.message.reply_text(text=lang["need_to_start_first"][langcode],
                                           reply_markup=Buttons.start(update.effective_user.id,
@@ -453,23 +472,28 @@ def startconfig(bot, update, args):
                 bot.send_message(update.effective_user.id,
                                  lang["change_settings_of_group"][langcode]
                                  .format(bot.get_chat(payload.group(2)).title),
-                                 reply_markup=Buttons.config(payload.group(2)))
+                                 reply_markup=Buttons.group_config(payload.group(2), langcode))
             else:
                 update.message.reply_text(text=lang["start_private"][langcode])
 
 
 def config_private(bot, update):
+    langcode = Database.find_entry_user(update.effective_user.id, update.effective_user.name)
     bot.send_message(update.effective_user.id, "You want to change your settings? Well, here you go then",
-                     reply_markup=Buttons.config(update.effective_user.id))
+                     reply_markup=Buttons.private_config(update.effective_user.id, langcode))
 
 
 def configing(_, update):
     query = update.callback_query
     todo = query.data[6:8]
+    langcode = Database.find_entry_user(update.effective_user.id, update.effective_user.name)
     payload = re.search(r"\|(.+)", query.data)
     if todo == "lg":
-        query.edit_message_text("So language it is. Please choose one from the list below",
+        query.edit_message_text(lang["config"][langcode][0],
                                 reply_markup=Buttons.language(payload.group(1)))
+    elif todo == "pl":
+        query.edit_message_text(lang["config"][langcode][1],
+                                reply_markup=Buttons.players(payload.group(1), langcode))
 
 
 def languaging(_, update):
