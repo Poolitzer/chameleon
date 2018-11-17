@@ -2,28 +2,31 @@
     "added_to_group": {
         "en": "Hello there. Run /config to change the language and enjoy the game."
     },
-    "start_game": {
-        "de": "Poowitzer is the best! \\o/",
-        "en": "Chameleon has been started! Please join the game.",
-        "fr": "Grrr"
-    },
-    "start_game_buttons": {
-        "en": ["Join", "Leave"]
-    },
-    "start_game_already_running": {
-        "en": "Please use the start button beneath this message to join the game :)"
+    "change_settings_of_group": {
+        "en": "You want to change the settings of the group {}? Well, here you go then."
     },
     "game_is_starting": {
         "en": "Game is starting..."
     },
-    "need_to_start_first": {
-        "en": "You need to start me in private first. Please do this via the button below :)"
-    },
     "need_to_be_admin": {
         "en": "You need to be an admin to do this, sorry."
     },
-    "change_settings_of_group": {
-        "en": "You want to change the settings of the group {}? Well, here you go then."
+    "need_to_start_first": {
+        "en": "You need to start me in private first. Please do this via the button below :)"
+    },
+    "start_game": {
+        "de": "Hmmmm",
+        "en": "Chameleon has been started! Please join the game.",
+        "fr": "Grrr"
+    },
+    "start_game_already_running": {
+        "en": "Please use the start button beneath this message to join the game :)"
+    },
+    "start_game_buttons": {
+        "en": [
+            "Join",
+            "Leave"
+        ]
     },
     "start_private": {
         "en": "Hello there"

@@ -42,48 +42,13 @@ class GlobalVariables:
     stringcode = None
     string = None
     votelist = {}
-
-    def game_status(self, status):
-        self.game_running = status
-
-    def message_add(self, message):
-        self.messages.append(message)
-
-    def message_del(self):
-        self.messages = []
-
-    def gamers_add(self, gamer):
-        self.gamers.append(gamer)
-
-    def gamers_rem(self, gamer):
-        self.gamers.remove(gamer)
-
-    def gamers_del(self):
-        self.gamers = []
+    timer_counter = 0
 
     def gamer_list(self):
         temp = []
         for gamer in self.gamers:
             temp.append(helpers.mention_html(gamer.id, gamer.name))
         return temp
-
-    def choose_chameleon(self, chameleon):
-        self.chameleon = chameleon
-
-    def shuffle_save(self, order):
-        self.shuffle = order
-
-    def words_add(self, word):
-        self.words.append(word)
-
-    def voted_add(self, voter):
-        self.voted.append(voter)
-
-    def stringcode_save(self, stringy):
-        self.stringcode = stringy
-
-    def string_save(self, stringy):
-        self.string = stringy
 
     def votelist_create(self):
         temp = []
@@ -276,8 +241,9 @@ def start(bot, update, job_queue):
     if not GlobalVariables.game_running:
         message = bot.send_message(chat_id=update.message.chat_id, text=lang["start_game"][langcode],
                                    reply_markup=Buttons.join_button(langcode))
-        GlobalVariables.message_add(message)
-        job_queue.run_repeating(reminder, 20, context=update.message.chat_id)
+        GlobalVariables.messages.append(message)
+        job_queue.run_repeating(reminder, 30, context=update.message.chat_id)
+        GlobalVariables.timer_counter = 4
     else:
         bot.send_message(update.message.chat_id, lang["start_game_already_running"][langcode],
                          reply_markup=Buttons.join_button(langcode))
@@ -285,35 +251,36 @@ def start(bot, update, job_queue):
 
 def reminder(bot, job):
     langcode = Database.find_entry_group(job.context)
-    if job.interval == 0:
+    if GlobalVariables.timer_counter == 0:
         for message in GlobalVariables.messages:
             message.delete()
         if len(GlobalVariables.gamers) >= 3:
             bot.send_message(chat_id=job.context, text="Game is starting...")
-            GlobalVariables.message_del()
-            GlobalVariables.game_status(True)
+            GlobalVariables.messages = []
+            GlobalVariables.game_running = True
             game(bot, job)
             job.schedule_removal()
         else:
             bot.send_message(chat_id=job.context, text="Game has been aborted, not enough players")
-            GlobalVariables.message_del()
-            GlobalVariables.gamers_del()
+            GlobalVariables.messages = []
+            GlobalVariables.gamers = []
             job.schedule_removal()
-    else:
-        job.interval -= 10
-        message = bot.send_message(chat_id=job.context, text="Only {} seconds left to join the game...".
-                                   format(job.interval), reply_markup=Buttons.join_button(langcode))
-        GlobalVariables.message_add(message)
+    elif GlobalVariables.timer_counter == 3:
+        job.interval = 10
+        message = bot.send_message(chat_id=job.context, text="30 seconds left to join the game...",
+                                   reply_markup=Buttons.join_button(langcode))
+        GlobalVariables.messages.append(message)
+    GlobalVariables.timer_counter -= 1
 
 
 def game(bot, job):
-    GlobalVariables.choose_chameleon(random.choice(GlobalVariables.gamers))
+    GlobalVariables.chameleon = (random.choice(GlobalVariables.gamers))
     bot.send_message(job.context, "The game has been started! These are the players:\n{}".format(
         "\n".join(GlobalVariables.gamer_list())), parse_mode=ParseMode.HTML)
     bot.send_message(job.context, theSource.word_list, reply_markup=Buttons.secret_button)
     temp = GlobalVariables.gamers
     random.shuffle(temp)
-    GlobalVariables.shuffle_save(temp)
+    GlobalVariables.shuffle = temp
     bot.send_message(job.context, "{}, you are the first one to give me a word. Please do this".format(
         create_mention([GlobalVariables.shuffle[0].id, GlobalVariables.shuffle[0].name])), parse_mode=ParseMode.HTML,
                      reply_markup=ForceReply(selective=True))
@@ -325,8 +292,8 @@ def words(bot, update):
             # This try cause it currently registers every answer. May need to add a vote status and check for this.
             try:
                 if update.effective_user.id == GlobalVariables.shuffle[len(GlobalVariables.words)].id:
-                    GlobalVariables.words_add(
-                        [GlobalVariables.shuffle[len(GlobalVariables.words)].name, update.message.text])
+                    GlobalVariables.words.append([GlobalVariables.shuffle[len(GlobalVariables.words)].name,
+                                                  update.message.text])
                     temp = len(GlobalVariables.words)
                     templist = []
                     for things in GlobalVariables.words:
@@ -369,7 +336,7 @@ def join(bot, update):
         # May also need more game states so we can make this better
         message = bot.send_message("Please use the start button beneath this message to join the game :)",
                                    reply_markup=Buttons.join_button(langcode))
-        GlobalVariables.message_add(message)
+        GlobalVariables.messages.append(message)
     else:
         bot.send_message(update.message.chat_id, "You need to start a game first, please use /start for that.")
 
@@ -387,11 +354,13 @@ def joining(bot, update):
         bot.send_message(chat_id=query.message.chat_id, text="{} joined the game.".format(
             create_mention([update.effective_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
         gamer = Gamers(update.effective_user.id, query.from_user.first_name)
-        GlobalVariables.gamers_add(gamer)
+        GlobalVariables.gamers.append(gamer)
         temp = GlobalVariables.gamer_list()
         GlobalVariables.messages[0].edit_text(
             text="Chameleon has been started! Please join the game.\nPlayers:\n{}".format(
                 "\n".join(temp)), parse_mode=ParseMode.HTML, reply_markup=Buttons.join_button(langcode))
+        if len(temp) >= 3:
+            GlobalVariables.timer_counter = 3
 
 
 def leaving(bot, update):
@@ -403,10 +372,11 @@ def leaving(bot, update):
             query.answer(text="You left the game!")
             bot.send_message(chat_id=query.message.chat_id, text="{} left the game.".format(
                 create_mention([update.effective_user.id, query.from_user.first_name])), parse_mode=ParseMode.HTML)
-            GlobalVariables.gamers_rem(gamers)
-            GlobalVariables.messages[0].edit_text(
-                parse_mode=ParseMode.HTML,
-                reply_markup=Buttons.join_button(langcode))
+            GlobalVariables.gamers.remove(gamers)
+            GlobalVariables.messages[0].edit_text(text="Chameleon has been started! Please join the game.\nPlayers:\n{}"
+                                                  .format("\n".join(GlobalVariables.gamer_list())),
+                                                  parse_mode=ParseMode.HTML,
+                                                  reply_markup=Buttons.join_button(langcode))
             skip = True
     if not skip:
         query.answer(text="You need to join first...", show_alert=True)
@@ -534,7 +504,7 @@ def string(_, update):
     query = update.callback_query
     langcode = query.data[6:8]
     strings = query.data[8:len(query.data)]
-    GlobalVariables.stringcode_save(langcode + strings)
+    GlobalVariables.stringcode = langcode + strings
     query.edit_message_text(
         "The current string is:\n\n<i>{}</i>\n\nPlease send me your improvement.".format(lang[strings][langcode]),
         parse_mode=ParseMode.HTML)
@@ -555,11 +525,11 @@ def new_string(bot, update):
                             lang[GlobalVariables.stringcode[2:len(GlobalVariables.stringcode)]]
                             [GlobalVariables.stringcode[0:2]], update.message.text),
                      reply_markup=Buttons.string_buttons, parse_mode=ParseMode.HTML)
-    GlobalVariables.string_save([update.message.text, update.effective_user.id])
+    GlobalVariables.string = [update.message.text, update.effective_user.id]
     return ConversationHandler.END
 
 
-def update_string(bot, update):
+def update_stringing(bot, update):
     query = update.callback_query
     if query.data[6:10] == "yes":
         lang[GlobalVariables.stringcode[2:len(GlobalVariables.stringcode)]][GlobalVariables.stringcode[0:2]] = \
@@ -583,8 +553,9 @@ def cancel(_, update):
 
 
 def main():
-    tokencode = 'TOKEN'
-    update = Updater(token=tokencode)
+    with open("token.txt", "r") as myfile:
+        tokencode = myfile.readlines()
+    update = Updater(token=tokencode[0])
     dispatcher = update.dispatcher
     dispatcher.add_handler(CommandHandler('start', start, pass_job_queue=True, filters=Filters.group))
     dispatcher.add_handler(CommandHandler('join', join, filters=Filters.group))
@@ -612,8 +583,8 @@ def main():
 
         fallbacks=[CommandHandler('cancel', cancel)],
     )
-
     dispatcher.add_handler(conv_handler)
+    dispatcher.add_handler(CallbackQueryHandler(update_stringing, pattern="string"))
     update.start_polling()
 
 
