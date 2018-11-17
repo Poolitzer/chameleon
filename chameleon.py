@@ -31,7 +31,7 @@ class Source:
 
 
 class GlobalVariables:
-    game_running = False
+    game_status = False
     gamers = []
     messages = []
     chameleon = None
@@ -238,12 +238,13 @@ def add(bot, update):
 
 def start(bot, update, job_queue):
     langcode = Database.find_entry_group(update.effective_chat.id)
-    if not GlobalVariables.game_running:
+    if not GlobalVariables.game_status:
         message = bot.send_message(chat_id=update.message.chat_id, text=lang["start_game"][langcode],
                                    reply_markup=Buttons.join_button(langcode))
         GlobalVariables.messages.append(message)
         job_queue.run_repeating(reminder, 30, context=update.message.chat_id)
         GlobalVariables.timer_counter = 4
+        GlobalVariables.game_status = "joining"
     else:
         bot.send_message(update.message.chat_id, lang["start_game_already_running"][langcode],
                          reply_markup=Buttons.join_button(langcode))
@@ -256,14 +257,15 @@ def reminder(bot, job):
             message.delete()
         if len(GlobalVariables.gamers) >= 3:
             bot.send_message(chat_id=job.context, text="Game is starting...")
+            GlobalVariables.game_status = "wording"
             GlobalVariables.messages = []
-            GlobalVariables.game_running = True
             game(bot, job)
             job.schedule_removal()
         else:
             bot.send_message(chat_id=job.context, text="Game has been aborted, not enough players")
             GlobalVariables.messages = []
             GlobalVariables.gamers = []
+            GlobalVariables.game_status = False
             job.schedule_removal()
     elif GlobalVariables.timer_counter == 3:
         job.interval = 10
@@ -287,7 +289,7 @@ def game(bot, job):
 
 
 def words(bot, update):
-    if GlobalVariables.game_running:
+    if GlobalVariables.game_status == "wording":
         if update.message.reply_to_message.from_user.id == 586029498:
             # This try cause it currently registers every answer. May need to add a vote status and check for this.
             try:
@@ -311,11 +313,12 @@ def words(bot, update):
                         bot.send_message(update.effective_chat.id,
                                          "Final list, we have to go to vote then:\n{} ".format("\n".join(templist)),
                                          parse_mode=ParseMode.HTML)
+                        GlobalVariables.game_status = "voting"
                         vote(bot, update)
+                else:
+                    pass
             except IndexError:
                 pass
-            else:
-                bot.send_message(update.effective_chat.id, "DENIED")
 
 
 def vote(bot, update):
@@ -332,8 +335,7 @@ def finish(bot, update):
 
 def join(bot, update):
     langcode = Database.find_entry_group(update.effective_chat.id)
-    if GlobalVariables.game_running:
-        # May also need more game states so we can make this better
+    if GlobalVariables.game_status == "joining":
         message = bot.send_message("Please use the start button beneath this message to join the game :)",
                                    reply_markup=Buttons.join_button(langcode))
         GlobalVariables.messages.append(message)
@@ -404,6 +406,7 @@ def voting(bot, update):
     if not skip:
         for gamer in GlobalVariables.gamers:
             if int(voteid) == gamer.id:
+                query.answer(text="You voted for {}".format(gamer.name))
                 bot.send_message(chat_id=query.message.chat_id, text="{} voted for {}.".format(
                     create_mention([update.effective_user.id, query.from_user.first_name]),
                     create_mention([gamer.id, gamer.name])), parse_mode=ParseMode.HTML)
@@ -415,9 +418,9 @@ def voting(bot, update):
                     if update.effective_user.id == gamers.id:
                         gamers.vote = True
                 if all(gamer.vote is True for gamer in GlobalVariables.gamers):
+                    query.message.delete()
                     bot.send_message(chat_id=query.message.chat_id, text="Voting stopped y'all")
                     finish(bot, update)
-                query.answer(text="You voted for {}".format(gamer.name))
 
 
 def config_group(bot, update):
